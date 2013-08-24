@@ -9,7 +9,6 @@ import spark.Route;
 
 import static spark.Spark.get;
 import static spark.Spark.post;
-import static spark.Spark.put;
 
 public class Service {
 
@@ -24,22 +23,22 @@ public class Service {
         final String key = request.params(":key");
         final String column = request.params(":column");
         if (key.isEmpty() || column.isEmpty()) {
-          halt(StatusCode.BAD_REQUEST.getCode());
+          return errorResponse(response, StatusCode.BAD_REQUEST);
         }
 
-        String value = null;
+        final String value;
         try {
           value = client.getString(key, column);
         } catch (CassandraClientException e) {
           e.printStackTrace();
-          halt(StatusCode.SERVICE_UNAVAILABLE.getCode());
+          return errorResponse(response, StatusCode.SERVICE_UNAVAILABLE);
         }
 
         if (value == null) {
-          halt(StatusCode.NOT_FOUND.getCode());
+          return errorResponse(response, StatusCode.NOT_FOUND);
         }
 
-        return value;
+        return valueResponse(response, value);
       }
     });
 
@@ -48,23 +47,44 @@ public class Service {
       public Object handle(Request request, Response response) {
         final String key = request.params(":key");
         final String column = request.params(":column");
-        if (key.isEmpty() || column.isEmpty())
-          halt(StatusCode.BAD_REQUEST.getCode());
+        if (key.isEmpty() || column.isEmpty()) {
+          return errorResponse(response, StatusCode.BAD_REQUEST);
+        }
 
         final String value = request.body();
-        if (value == null || value.isEmpty())
-          halt(StatusCode.BAD_REQUEST.getCode());
+        if (value == null || value.isEmpty()) {
+          return errorResponse(response, StatusCode.BAD_REQUEST);
+        }
 
         try {
           client.setString(key, column, value);
         } catch (CassandraClientException e) {
           e.printStackTrace();
-          halt(StatusCode.SERVICE_UNAVAILABLE.getCode());
+          return errorResponse(response, StatusCode.SERVICE_UNAVAILABLE);
         }
-        return "OK";
+
+        return successResponse(response);
       }
     });
 
+  }
+
+  private static Object valueResponse(Response response, String value) {
+    response.type("text/plain");
+    response.status(StatusCode.OK.getCode());
+    return value;
+  }
+
+  private static Object successResponse(Response response) {
+    response.type("text/plain");
+    response.status(StatusCode.OK.getCode());
+    return "OK";
+  }
+
+  private static Object errorResponse(Response response, StatusCode status) {
+    response.type("text/plain");
+    response.status(status.getCode());
+    return status.name();
   }
 
 }
