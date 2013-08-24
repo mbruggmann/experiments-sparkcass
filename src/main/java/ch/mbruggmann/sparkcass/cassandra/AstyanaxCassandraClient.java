@@ -6,12 +6,15 @@ import com.netflix.astyanax.MutationBatch;
 import com.netflix.astyanax.connectionpool.NodeDiscoveryType;
 import com.netflix.astyanax.connectionpool.OperationResult;
 import com.netflix.astyanax.connectionpool.exceptions.ConnectionException;
+import com.netflix.astyanax.connectionpool.exceptions.NotFoundException;
 import com.netflix.astyanax.connectionpool.impl.ConnectionPoolConfigurationImpl;
+import com.netflix.astyanax.connectionpool.impl.ConnectionPoolType;
 import com.netflix.astyanax.connectionpool.impl.CountingConnectionPoolMonitor;
 import com.netflix.astyanax.impl.AstyanaxConfigurationImpl;
 import com.netflix.astyanax.model.Column;
 import com.netflix.astyanax.model.ColumnFamily;
 import com.netflix.astyanax.model.ColumnList;
+import com.netflix.astyanax.model.ConsistencyLevel;
 import com.netflix.astyanax.serializers.StringSerializer;
 import com.netflix.astyanax.thrift.ThriftFamilyFactory;
 
@@ -41,6 +44,8 @@ public class AstyanaxCassandraClient {
       OperationResult<ColumnList<String>> result = keyspace.prepareQuery(columnFamily).getKey(key).execute();
       Column<String> value = result.getResult().getColumnByName(column);
       return (value != null && value.hasValue()) ? value.getStringValue() : null;
+    } catch (NotFoundException e) {
+      return null;
     } catch (ConnectionException e) {
       throw new CassandraClientException("cant read value for key " + key + ", column " + column, e);
     }
@@ -69,11 +74,16 @@ public class AstyanaxCassandraClient {
         .forKeyspace(config.getKeyspace())
         .withAstyanaxConfiguration(new AstyanaxConfigurationImpl()
             .setDiscoveryType(NodeDiscoveryType.RING_DESCRIBE)
+            .setConnectionPoolType(ConnectionPoolType.TOKEN_AWARE)
+            .setDefaultReadConsistencyLevel(ConsistencyLevel.CL_LOCAL_QUORUM)
+            .setDefaultWriteConsistencyLevel(ConsistencyLevel.CL_LOCAL_QUORUM)
         )
-        .withConnectionPoolConfiguration(new ConnectionPoolConfigurationImpl("MyConnectionPool")
+        .withConnectionPoolConfiguration(new ConnectionPoolConfigurationImpl("CassandraConnectionPool")
             .setPort(config.getPort())
             .setMaxConnsPerHost(1)
             .setSeeds(config.getSeeds())
+            .setConnectionLimiterMaxPendingCount(600)
+            .setConnectionLimiterWindowSize(1000)
         )
         .withConnectionPoolMonitor(new CountingConnectionPoolMonitor())
         .buildKeyspace(ThriftFamilyFactory.getInstance());
