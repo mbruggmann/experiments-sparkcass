@@ -2,10 +2,11 @@ package ch.mbruggmann.sparkcass;
 
 import ch.mbruggmann.sparkcass.cassandra.AstyanaxCassandraClient;
 import ch.mbruggmann.sparkcass.cassandra.CassandraClientException;
-import ch.mbruggmann.sparkcass.cassandra.CassandraConfig;
 import spark.Request;
 import spark.Response;
 import spark.Route;
+
+import java.io.File;
 
 import static spark.Spark.get;
 import static spark.Spark.post;
@@ -14,7 +15,7 @@ public class Service {
 
   public static void main(String[] args) {
 
-    final CassandraConfig config = new CassandraConfig();
+    final Config config = Config.fromFile(new File("sparkcass.conf"));
     final AstyanaxCassandraClient client = new AstyanaxCassandraClient(config);
 
     get(new Route("/:key/:column") {

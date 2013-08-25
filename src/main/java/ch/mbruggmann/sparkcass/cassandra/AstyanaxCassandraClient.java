@@ -1,5 +1,6 @@
 package ch.mbruggmann.sparkcass.cassandra;
 
+import ch.mbruggmann.sparkcass.Config;
 import com.netflix.astyanax.AstyanaxContext;
 import com.netflix.astyanax.Keyspace;
 import com.netflix.astyanax.MutationBatch;
@@ -20,14 +21,17 @@ import com.netflix.astyanax.thrift.ThriftFamilyFactory;
 
 public class AstyanaxCassandraClient {
 
-  private final CassandraConfig config;
+  private final Config config;
   private final Keyspace keyspace;
   private final ColumnFamily<String, String> columnFamily;
 
-  public AstyanaxCassandraClient(CassandraConfig config) {
+  public AstyanaxCassandraClient(Config config) {
     this.config = config;
-    this.keyspace = connect(config);
-    this.columnFamily = new ColumnFamily<String, String>(config.getColumnFamily(),
+    this.keyspace = connect(config.getCassandraConfig());
+
+    //FIXME: should be a map
+    String firstCF = config.getColumnFamilies().keySet().iterator().next();
+    this.columnFamily = new ColumnFamily<String, String>(firstCF,
         StringSerializer.get(),
         StringSerializer.get());
   }
@@ -68,7 +72,7 @@ public class AstyanaxCassandraClient {
     }
   }
 
-  private final Keyspace connect(final CassandraConfig config) {
+  private final Keyspace connect(final Config.CassandraConfig config) {
     AstyanaxContext<Keyspace> context = new AstyanaxContext.Builder()
         .forCluster(config.getCluster())
         .forKeyspace(config.getKeyspace())
