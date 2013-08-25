@@ -10,6 +10,7 @@ import java.io.File;
 
 import static spark.Spark.get;
 import static spark.Spark.post;
+import static spark.Spark.setPort;
 
 public class Service {
 
@@ -18,18 +19,23 @@ public class Service {
     final Config config = Config.fromFile(new File("sparkcass.conf"));
     final AstyanaxCassandraClient client = new AstyanaxCassandraClient(config);
 
-    get(new Route("/:key/:column") {
+    setPort(config.getServiceConfig().getPort());
+    get(new Route("/v1/:cf/:key/:column") {
       @Override
       public Object handle(Request request, Response response) {
+        final String columnFamily = request.params(":cf");
         final String key = request.params(":key");
         final String column = request.params(":column");
-        if (key.isEmpty() || column.isEmpty()) {
+        if (columnFamily.isEmpty() || key.isEmpty() || column.isEmpty()) {
           return errorResponse(response, StatusCode.BAD_REQUEST);
+        }
+        if (!client.isKnownColumnFamily(columnFamily)) {
+          return errorResponse(response, StatusCode.NOT_FOUND);
         }
 
         final String value;
         try {
-          value = client.getString(key, column);
+          value = client.getString(columnFamily, key, column);
         } catch (CassandraClientException e) {
           e.printStackTrace();
           return errorResponse(response, StatusCode.SERVICE_UNAVAILABLE);
@@ -43,13 +49,17 @@ public class Service {
       }
     });
 
-    post(new Route("/:key/:column") {
+    post(new Route("/v1/:cf/:key/:column") {
       @Override
       public Object handle(Request request, Response response) {
+        final String columnFamily = request.params(":cf");
         final String key = request.params(":key");
         final String column = request.params(":column");
-        if (key.isEmpty() || column.isEmpty()) {
+        if (columnFamily.isEmpty() || key.isEmpty() || column.isEmpty()) {
           return errorResponse(response, StatusCode.BAD_REQUEST);
+        }
+        if (!client.isKnownColumnFamily(columnFamily)) {
+          return errorResponse(response, StatusCode.NOT_FOUND);
         }
 
         final String value = request.body();
@@ -58,7 +68,7 @@ public class Service {
         }
 
         try {
-          client.setString(key, column, value);
+          client.setString(columnFamily, key, column, value);
         } catch (CassandraClientException e) {
           e.printStackTrace();
           return errorResponse(response, StatusCode.SERVICE_UNAVAILABLE);
